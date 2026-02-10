@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ผลสำรวจความพึงพอใจ Line Chatbot - ทต.หัวดง</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Prop Types (Required for Recharts UMD) -->
+    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+    
+    <!-- Recharts (Graph Library) - Pinned Version for Stability -->
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    
+    <!-- PapaParse for CSV (Google Sheets) Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #60A5FA;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+    <!-- Google Fonts for Thai support -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-50 text-slate-600">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- Fix: Suppress React defaultProps warning from Recharts ---
+        const originalConsoleError = console.error;
+        console.error = (...args) => {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('defaultProps')) {
+                return;
+            }
+            originalConsoleError(...args);
+        };
+
+        const { useState, useMemo, useEffect } = React;
+        
+        const { 
+            BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, Legend, ResponsiveContainer, 
+            PieChart, Pie, Cell, LineChart, Line 
+        } = window.Recharts || {};
+
+        if (!window.Recharts) {
+            console.error("Recharts library failed to load.");
+        }
+
+        // --- Icon Components ---
+        const IconBase = ({ d, size = 24, className, color = "currentColor" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {d}
+            </svg>
+        );
+
+        const Users = (props) => <IconBase {...props} d={<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>} />;
+        const BookOpen = (props) => <IconBase {...props} d={<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>} />;
+        const UserCheck = (props) => <IconBase {...props} d={<><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></>} />;
+        const Activity = (props) => <IconBase {...props} d={<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>} />;
+        const BarChart2 = (props) => <IconBase {...props} d={<><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>} />;
+        const PieChartIcon = (props) => <IconBase {...props} d={<><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></>} />;
+        const ListIcon = (props) => <IconBase {...props} d={<><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>} />;
+        const CheckCircle = (props) => <IconBase {...props} d={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>} />;
+        const ExternalLink = (props) => <IconBase {...props} d={<><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></>} />;
+        const RefreshCw = (props) => <IconBase {...props} d={<><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>} />;
+        const AlertTriangle = (props) => <IconBase {...props} d={<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>} />;
+
+        // ***************************************************************
+        // ⚠️ สำคัญ: ใส่ลิงก์ CSV ตรงนี้ 
+        // ต้องลงท้ายด้วย output=csv เท่านั้น (ห้ามใช้ลิงก์ /edit)
+        // ***************************************************************
+        const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTG14eGteKHKLlOcnUwD2_H0eIEdkEhubgq1-CJbC9cW6kG9yVAjvd8n_tr0FlEd-2rEUXixESaaaNe/pub?output=csv"; 
+        // ***************************************************************
+
+        // --- ข้อมูลดิบตัวอย่าง (Fallback Data) ---
+        const INITIAL_DATA = [
+            ...Array(6).fill({
+                id: 'm1', gender: 'ชาย', age: '31-40', status: 'ผู้ปกครอง', education: 'ปริญญาตรี',
+                scores: { p2_1_q1: 5, p2_1_q2: 5, p2_1_q3: 5, p2_2_q4: 4, p2_2_q5: 4, p2_2_q6: 4, p2_2_q7: 4, p2_2_q8: 5, p2_2_q9: 5, p3: 5 }
+            })
+        ];
+
+        const COLORS = {
+            primary: '#60A5FA',    secondary: '#A78BFA',  success: '#34D399',
+            warning: '#FBBF24',    danger: '#F87171',     purple: '#C084FC',
+            male: '#93C5FD',       female: '#F472B6',     pie: ['#60A5FA', '#34D399', '#FBBF24', '#F87171', '#A78BFA']
+        };
+
+        const QuestionLabel = {
+            p2_1_q1: '2.1 ข้อ 1 (ความสะดวก)', p2_1_q2: '2.1 ข้อ 2 (ความสวยงาม)', p2_1_q3: '2.1 ข้อ 3 (การจัดวาง)',
+            p2_2_q4: '2.2 ข้อ 4 (ความถูกต้อง)', p2_2_q5: '2.2 ข้อ 5 (ความรวดเร็ว)', p2_2_q6: '2.2 ข้อ 6 (ความชัดเจน)',
+            p2_2_q7: '2.2 ข้อ 7 (ประโยชน์)', p2_2_q8: '2.2 ข้อ 8 (ความพึงพอใจบริการ)', p2_2_q9: '2.2 ข้อ 9 (การแนะนำบอกต่อ)',
+            p3: 'ส่วนที่ 3 (ภาพรวม)'
+        };
+
+        // --- Main Component ---
+        const App = () => {
+            const [data, setData] = useState(INITIAL_DATA);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [errorDetails, setErrorDetails] = useState(null);
+            const [activeTab, setActiveTab] = useState('overview');
+
+            const fetchData = async () => {
+                if (!GOOGLE_SHEET_CSV_URL) {
+                    console.log("No Google Sheet URL provided, using initial data.");
+                    return;
+                }
+
+                if (!GOOGLE_SHEET_CSV_URL.includes("output=csv")) {
+                    setError("รูปแบบลิงก์ไม่ถูกต้อง");
+                    setErrorDetails("คุณอาจจะนำลิงก์จากช่อง URL Browser มาวาง (ที่ลงท้ายด้วย /edit)\n\nวิธีแก้: ไปที่ File > Share > Publish to web > เลือก Comma-separated values (.csv) > กด Publish > คัดลอกลิงก์ที่ได้มาวางใหม่");
+                    return;
+                }
+
+                setLoading(true);
+                setError(null);
+                setErrorDetails(null);
+
+                try {
+                    Papa.parse(GOOGLE_SHEET_CSV_URL, {
+                        download: true,
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: (results) => {
+                            if (results.errors.length > 0) {
+                                console.error("CSV Parse Error Details:", results.errors);
+                            }
+
+                            const parsedData = results.data
+                                .filter(row => row.gender || row.age) 
+                                .map((row, index) => ({
+                                    id: row.id || `row-${index + 1}`,
+                                    gender: row.gender,
+                                    age: row.age,
+                                    status: row.status,
+                                    education: row.education,
+                                    scores: {
+                                        p2_1_q1: parseFloat(row.p2_1_q1) || 0,
+                                        p2_1_q2: parseFloat(row.p2_1_q2) || 0,
+                                        p2_1_q3: parseFloat(row.p2_1_q3) || 0,
+                                        p2_2_q4: parseFloat(row.p2_2_q4) || 0,
+                                        p2_2_q5: parseFloat(row.p2_2_q5) || 0,
+                                        p2_2_q6: parseFloat(row.p2_2_q6) || 0,
+                                        p2_2_q7: parseFloat(row.p2_2_q7) || 0,
+                                        p2_2_q8: parseFloat(row.p2_2_q8) || 0,
+                                        p2_2_q9: parseFloat(row.p2_2_q9) || 0,
+                                        p3: parseFloat(row.p3) || 0
+                                    }
+                                }));
+                            
+                            if (parsedData.length > 0) {
+                                setData(parsedData);
+                            } else {
+                                setError("เชื่อมต่อได้ แต่ไม่พบข้อมูลในตาราง");
+                                setErrorDetails("โปรดตรวจสอบว่า: \n1. คุณได้เปลี่ยนชื่อหัวคอลัมน์ (Header) แถวที่ 1 เป็นภาษาอังกฤษตามคู่มือแล้ว (gender, age, education...)\n2. มีข้อมูลการตอบกลับใน Sheet นั้นๆ");
+                            }
+                            setLoading(false);
+                        },
+                        error: (err) => {
+                            console.error("CSV Parse Error:", err);
+                            setError("ไม่สามารถดึงข้อมูลจาก Google Sheet ได้");
+                            setErrorDetails("สาเหตุที่เป็นไปได้:\n1. ลิงก์ผิด หรือยังไม่ได้กด Publish to web\n2. ติดปัญหา Browser Block (CORS) - ลองเปิดด้วย Live Server\n3. Sheet ถูกตั้งค่าเป็น Private (ต้องตั้งเป็น Public ในหน้า Publish)");
+                            setLoading(false);
+                        }
+                    });
+                } catch (err) {
+                    console.error("Fetch Error:", err);
+                    setError("เกิดข้อผิดพลาดในการเชื่อมต่อ");
+                    setLoading(false);
+                }
+            };
+
+            useEffect(() => {
+                fetchData();
+            }, []);
+
+            const stats = useMemo(() => {
+                const total = data.length;
+                const males = data.filter(d => d.gender && String(d.gender).includes('ชาย')).length;
+                const females = data.filter(d => d.gender && String(d.gender).includes('หญิง')).length;
+                
+                const totalScoreSum = data.reduce((acc, curr) => {
+                    const scores = Object.values(curr.scores);
+                    return acc + (scores.reduce((a, b) => a + b, 0) / scores.length);
+                }, 0);
+                const averageScore = total > 0 ? (totalScoreSum / total).toFixed(2) : 0;
+
+                return { total, males, females, averageScore };
+            }, [data]);
+
+            const pieData = useMemo(() => {
+                const groupBy = (key) => {
+                    const counts = data.reduce((acc, curr) => {
+                        const val = curr[key] || 'ไม่ระบุ';
+                        acc[val] = (acc[val] || 0) + 1;
+                        return acc;
+                    }, {});
+                    return Object.keys(counts).map(k => ({ name: k, value: counts[k] }));
+                };
+                return {
+                    age: groupBy('age'),
+                    education: groupBy('education'),
+                    status: groupBy('status')
+                };
+            }, [data]);
+
+            const scoreByEducation = useMemo(() => {
+                if (data.length === 0) return [];
+                const questions = Object.keys(data[0].scores);
+                return questions.map(qKey => {
+                    // Normalize education text check: use 'includes' for robustness
+                    const bachData = data.filter(d => d.education && String(d.education).includes('ปริญญาตรี') && !String(d.education).includes('ต่ำกว่า'));
+                    const lowerBachData = data.filter(d => d.education && String(d.education).includes('ต่ำกว่าปริญญาตรี'));
+                    
+                    const avgBach = bachData.length ? bachData.reduce((acc, curr) => acc + curr.scores[qKey], 0) / bachData.length : 0;
+                    const avgLower = lowerBachData.length ? lowerBachData.reduce((acc, curr) => acc + curr.scores[qKey], 0) / lowerBachData.length : 0;
+                    
+                    let shortName = '';
+                    if (qKey.includes('p2_1')) shortName = `2.1 ข้อ ${qKey.split('q')[1]}`;
+                    else if (qKey.includes('p2_2')) shortName = `2.2 ข้อ ${qKey.split('q')[1]}`;
+                    else shortName = 'ส่วนที่ 3';
+                    return {
+                        question: QuestionLabel[qKey] || qKey,
+                        shortName: shortName,
+                        'ปริญญาตรี': parseFloat(avgBach.toFixed(2)),
+                        'ต่ำกว่าปริญญาตรี': parseFloat(avgLower.toFixed(2)),
+                    };
+                });
+            }, [data]);
+
+            // *** FIXED: Loose Matching for Ages ***
+            const scoreByAge = useMemo(() => {
+                if (data.length === 0) return [];
+                const questions = Object.keys(data[0].scores);
+                
+                // Helper to check age loosely
+                const checkAge = (dataAge, targetStr) => {
+                    if (!dataAge) return false;
+                    // Remove all spaces and "ปี" then check inclusion
+                    const cleanData = String(dataAge).replace(/\s|ปี/g, '');
+                    const cleanTarget = targetStr.replace(/\s/g, '');
+                    return cleanData.includes(cleanTarget);
+                };
+
+                return questions.map(qKey => {
+                    const age2030 = data.filter(d => checkAge(d.age, '20-30'));
+                    const age3140 = data.filter(d => checkAge(d.age, '31-40'));
+                    const age4150 = data.filter(d => checkAge(d.age, '41-50'));
+                    const age5160 = data.filter(d => checkAge(d.age, '51-60'));
+
+                    const avg2030 = age2030.length ? age2030.reduce((acc, curr) => acc + curr.scores[qKey], 0) / age2030.length : 0;
+                    const avg3140 = age3140.length ? age3140.reduce((acc, curr) => acc + curr.scores[qKey], 0) / age3140.length : 0;
+                    const avg4150 = age4150.length ? age4150.reduce((acc, curr) => acc + curr.scores[qKey], 0) / age4150.length : 0;
+                    const avg5160 = age5160.length ? age5160.reduce((acc, curr) => acc + curr.scores[qKey], 0) / age5160.length : 0;
+
+                    let shortName = '';
+                    if (qKey.includes('p2_1')) shortName = `2.1 ข้อ ${qKey.split('q')[1]}`;
+                    else if (qKey.includes('p2_2')) shortName = `2.2 ข้อ ${qKey.split('q')[1]}`;
+                    else shortName = 'ส่วนที่ 3';
+
+                    return {
+                        question: QuestionLabel[qKey] || qKey,
+                        shortName: shortName,
+                        '20-30 ปี': parseFloat(avg2030.toFixed(2)),
+                        '31-40 ปี': parseFloat(avg3140.toFixed(2)),
+                        '41-50 ปี': parseFloat(avg4150.toFixed(2)),
+                        '51-60 ปี': parseFloat(avg5160.toFixed(2)),
+                    };
+                });
+            }, [data]);
+
+            if (error) {
+                 return (
+                    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans">
+                        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-lg w-full text-center border border-red-100">
+                            <div className="bg-red-50 p-4 rounded-full inline-block mb-4 text-red-500">
+                                 <AlertTriangle size={48} />
+                            </div>
+                            <h3 className="text-2xl font-bold text-slate-800 mb-2">{error}</h3>
+                            <div className="bg-slate-50 p-4 rounded-lg text-left text-sm text-slate-600 whitespace-pre-line mb-6 border border-slate-200">
+                                {errorDetails}
+                            </div>
+                            
+                            <div className="flex gap-3 justify-center">
+                                <button onClick={() => window.location.reload()} className="px-6 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors">
+                                    รีโหลดหน้าเว็บ
+                                </button>
+                                <button onClick={fetchData} className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm">
+                                    ลองดึงข้อมูลใหม่
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                 )
+            }
+
+            if (loading) {
+                 return (
+                    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-sans">
+                        <div className="loading-spinner mb-4"></div>
+                        <p className="text-slate-500 font-medium">กำลังเชื่อมต่อฐานข้อมูล...</p>
+                    </div>
+                 )
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
+                    {/* Header */}
+                    <header className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border-b border-slate-100 sticky top-0 z-50">
+                        <div className="container mx-auto px-4 py-4 md:py-6">
+                            <div className="flex flex-col md:flex-row justify-between items-center">
+                                <div>
+                                    <h1 className="text-xl md:text-3xl font-bold text-slate-700">ผลสำรวจความพึงพอใจ Line Chatbot</h1>
+                                    <p className="text-slate-500 mt-1 text-sm md:text-base">กองการศึกษา เทศบาลตำบลหัวดง อ.ลับแล จ.อุตรดิตถ์</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="mt-4 md:mt-0 bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2 rounded-full text-sm flex items-center gap-2 shadow-sm">
+                                        <CheckCircle size={16} />
+                                        สถานะ: <span className="font-bold">ข้อมูลครบถ้วน</span> ({stats.total} ราย)
+                                    </div>
+                                    {GOOGLE_SHEET_CSV_URL && (
+                                        <button onClick={fetchData} className="mt-4 md:mt-0 bg-white text-blue-500 border border-blue-200 p-2 rounded-full hover:bg-blue-50 transition-colors shadow-sm" title="อัปเดตข้อมูล">
+                                            <RefreshCw size={20} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="container mx-auto px-4 py-8">
+                        {/* Stat Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                            <StatCard icon={<Users />} title="ผู้ตอบทั้งหมด" value={stats.total} sub="จากแบบสอบถาม" color="bg-blue-400" />
+                            <StatCard icon={<UserCheck />} title="ชาย" value={stats.males} sub={`${stats.total ? ((stats.males/stats.total)*100).toFixed(0) : 0}%`} color="bg-indigo-400" />
+                            <StatCard icon={<UserCheck />} title="หญิง" value={stats.females} sub={`${stats.total ? ((stats.females/stats.total)*100).toFixed(0) : 0}%`} color="bg-pink-400" />
+                            <StatCard icon={<Activity />} title="คะแนนเฉลี่ยรวม" value={stats.averageScore} sub="จากเต็ม 5.00" color="bg-emerald-400" />
+                        </div>
+
+                        {/* Tabs */}
+                        <div className="flex space-x-2 mb-6 border-b border-slate-200 overflow-x-auto pb-2">
+                            <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={<BarChart2 size={18} />} label="ภาพรวม & เปรียบเทียบ" />
+                            <TabButton active={activeTab === 'demographics'} onClick={() => setActiveTab('demographics')} icon={<PieChartIcon size={18} />} label="ข้อมูลประชากร" />
+                            <TabButton active={activeTab === 'details'} onClick={() => setActiveTab('details')} icon={<ListIcon size={18} />} label="รายละเอียดข้อมูลดิบ" />
+                        </div>
+
+                        {activeTab === 'overview' && (
+                            <div className="space-y-8 animate-fade-in">
+                                <a href="https://gornphet.github.io/line_Satisfaction/" target="_blank" rel="noopener noreferrer" className="block bg-white hover:bg-slate-50 border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all group">
+                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-blue-50 p-3 rounded-xl group-hover:bg-blue-100 transition-colors"><ExternalLink size={24} className="text-blue-500" /></div>
+                                            <div>
+                                                <h3 className="font-bold text-lg md:text-xl text-slate-700 flex items-center gap-2">แบบสอบถามความพึงพอใจ (ต้นฉบับ)<span className="hidden md:inline-block text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-100">Live Link</span></h3>
+                                                <p className="text-slate-400 text-sm mt-1 font-mono">https://gornphet.github.io/line_Satisfaction/</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm font-medium text-blue-500 bg-blue-50 px-4 py-2 rounded-full group-hover:bg-blue-500 group-hover:text-white transition-all self-end md:self-center">เปิดหน้าเว็บ <span className="group-hover:translate-x-1 transition-transform">→</span></div>
+                                    </div>
+                                </a>
+
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                    <div className="mb-6 border-b border-slate-50 pb-4">
+                                        <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2"><BookOpen className="text-blue-400" />เปรียบเทียบความพึงพอใจ: จำแนกตามวุฒิการศึกษา</h2>
+                                        <p className="text-sm text-slate-400 mt-1">กราฟแสดงคะแนนเฉลี่ยรายข้อ ระหว่างกลุ่มปริญญาตรี และต่ำกว่าปริญญาตรี</p>
+                                    </div>
+                                    <div className="h-[400px]">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={scoreByEducation} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                <XAxis dataKey="shortName" tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} />
+                                                <YAxis domain={[0, 5]} allowDecimals={false} tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
+                                                <RechartsTooltip content={<CustomTooltip />} cursor={{fill: '#f1f5f9'}} />
+                                                <Legend verticalAlign="top" height={36} iconType="circle" />
+                                                <Bar dataKey="ปริญญาตรี" fill={COLORS.primary} radius={[6, 6, 0, 0]} name="ปริญญาตรี" />
+                                                <Bar dataKey="ต่ำกว่าปริญญาตรี" fill={COLORS.secondary} radius={[6, 6, 0, 0]} name="ต่ำกว่า ป.ตรี" />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                    <div className="mb-6 border-b border-slate-50 pb-4">
+                                        <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2"><Users className="text-emerald-400" />เปรียบเทียบความพึงพอใจ: จำแนกตามช่วงอายุ</h2>
+                                        <p className="text-sm text-slate-400 mt-1">เปรียบเทียบ 4 ช่วงอายุ (20-30, 31-40, 41-50, 51-60 ปี)</p>
+                                    </div>
+                                    <div className="h-[400px]">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={scoreByAge} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                <XAxis dataKey="shortName" tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} />
+                                                <YAxis domain={[3, 5]} tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
+                                                <RechartsTooltip content={<CustomTooltip />} />
+                                                <Legend verticalAlign="top" height={36} iconType="circle" />
+                                                <Line type="monotone" dataKey="20-30 ปี" stroke={COLORS.danger} strokeWidth={3} activeDot={{ r: 6, fill: COLORS.danger, strokeWidth: 0 }} dot={{fill: COLORS.danger, strokeWidth: 0}} />
+                                                <Line type="monotone" dataKey="31-40 ปี" stroke={COLORS.warning} strokeWidth={3} activeDot={{ r: 6, fill: COLORS.warning, strokeWidth: 0 }} dot={{fill: COLORS.warning, strokeWidth: 0}} />
+                                                <Line type="monotone" dataKey="41-50 ปี" stroke={COLORS.success} strokeWidth={3} activeDot={{ r: 6, fill: COLORS.success, strokeWidth: 0 }} dot={{fill: COLORS.success, strokeWidth: 0}} />
+                                                <Line type="monotone" dataKey="51-60 ปี" stroke={COLORS.purple} strokeWidth={3} activeDot={{ r: 6, fill: COLORS.purple, strokeWidth: 0 }} dot={{fill: COLORS.purple, strokeWidth: 0}} />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Demographics Tab */}
+                        {activeTab === 'demographics' && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+                                <PieChartCard title="ช่วงอายุ" data={pieData.age} colors={COLORS.pie} />
+                                <PieChartCard title="สถานะทางสังคม" data={pieData.status} colors={[COLORS.pie[4], COLORS.pie[0]]} />
+                                <PieChartCard title="ระดับการศึกษา" data={pieData.education} colors={[COLORS.pie[1], COLORS.pie[2]]} />
+                            </div>
+                        )}
+
+                        {/* Details Tab */}
+                        {activeTab === 'details' && (
+                            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
+                                <div className="p-6 border-b border-slate-100">
+                                    <h3 className="font-bold text-lg text-slate-700">ข้อมูลดิบ (Raw Data) - ทั้งหมด {data.length} รายการ</h3>
+                                </div>
+                                <div className="overflow-x-auto h-[600px]">
+                                    <table className="w-full text-sm text-left relative">
+                                        <thead className="bg-slate-50 text-slate-600 font-semibold border-b sticky top-0 shadow-sm z-10">
+                                            <tr>
+                                                <th className="p-4 bg-slate-50">ID</th>
+                                                <th className="p-4 bg-slate-50">เพศ</th>
+                                                <th className="p-4 bg-slate-50">อายุ</th>
+                                                <th className="p-4 bg-slate-50">การศึกษา</th>
+                                                <th className="p-4 bg-slate-50">สถานะ</th>
+                                                <th className="p-4 bg-slate-50 text-center">2.1 (3 ข้อ)</th>
+                                                <th className="p-4 bg-slate-50 text-center">2.2 (Q4-Q9)</th>
+                                                <th className="p-4 bg-slate-50 text-center">ส่วนที่ 3</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 overflow-y-auto">
+                                            {data.map((row, idx) => (
+                                                <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
+                                                    <td className="p-4 font-mono text-slate-400">#{row.id}</td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${row.gender === 'ชาย' ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'}`}>
+                                                            {row.gender}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-slate-600">{row.age}</td>
+                                                    <td className="p-4 text-slate-600">{row.education}</td>
+                                                    <td className="p-4 text-slate-600">{row.status}</td>
+                                                    <td className="p-4 text-center font-bold text-blue-500">
+                                                        {row.scores.p2_1_q1}, {row.scores.p2_1_q2}, {row.scores.p2_1_q3}
+                                                    </td>
+                                                    <td className="p-4 text-center text-slate-400">
+                                                        {row.scores.p2_2_q4}, {row.scores.p2_2_q5}...
+                                                    </td>
+                                                    <td className="p-4 text-center font-bold text-emerald-500">{row.scores.p3}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        const StatCard = ({ icon, title, value, sub, color }) => (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-start justify-between hover:shadow-md transition-shadow">
+                <div>
+                    <p className="text-slate-400 text-sm font-medium">{title}</p>
+                    <h3 className="text-3xl font-bold mt-2 text-slate-700">{value}</h3>
+                    <p className="text-slate-400 text-xs mt-1">{sub}</p>
+                </div>
+                <div className={`p-3 rounded-xl text-white shadow-sm ${color}`}>
+                    {React.cloneElement(icon, { size: 24 })}
+                </div>
+            </div>
+        );
+
+        const TabButton = ({ active, onClick, icon, label }) => (
+            <button 
+                onClick={onClick}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap
+                    ${active ? 'bg-blue-50 text-blue-600 shadow-sm border border-blue-100' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}
+            >
+                {icon}
+                {label}
+            </button>
+        );
+
+        const PieChartCard = ({ title, data, colors }) => (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center">
+                <h3 className="font-bold text-slate-600 mb-4 self-start w-full border-b border-slate-50 pb-2">{title}</h3>
+                <div className="w-full h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie
+                                data={data}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="value"
+                                label={({name, value}) => `${name} (${value})`}
+                            >
+                                {data.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={colors[index % colors.length]} strokeWidth={0} />
+                                ))}
+                            </Pie>
+                            <RechartsTooltip />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+        );
+
+        const CustomTooltip = ({ active, payload, label }) => {
+            if (active && payload && payload.length) {
+                return (
+                    <div className="bg-white p-4 border border-slate-100 shadow-xl rounded-xl text-sm z-50">
+                        <p className="font-bold text-slate-700 mb-3 border-b border-slate-50 pb-2">{label}</p>
+                        {payload.map((entry, index) => (
+                            <div key={index} className="flex items-center gap-2 mb-2 last:mb-0">
+                                <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: entry.color }}></div>
+                                <span className="text-slate-500 font-medium">{entry.name}:</span>
+                                <span className="font-bold text-slate-700 ml-auto">{entry.value} คะแนน</span>
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+            return null;
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
