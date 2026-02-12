@@ -90,6 +90,7 @@
         const ExternalLink = (props) => <IconBase {...props} d={<><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></>} />;
         const RefreshCw = (props) => <IconBase {...props} d={<><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>} />;
         const AlertTriangle = (props) => <IconBase {...props} d={<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>} />;
+        const ClipboardList = (props) => <IconBase {...props} d={<><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></>} />;
 
         // ***************************************************************
         // ⚠️ สำคัญ: ใส่ลิงก์ CSV ตรงนี้ 
@@ -288,6 +289,54 @@
                 });
             }, [data]);
 
+            // --- สรุปผลรายด้าน (Category Stats) ---
+            const categoryStats = useMemo(() => {
+                if (data.length === 0) return null;
+
+                const calcAvg = (keys) => {
+                    let totalSum = 0;
+                    let count = 0;
+                    data.forEach(d => {
+                        keys.forEach(k => {
+                            if(typeof d.scores[k] === 'number') {
+                                totalSum += d.scores[k];
+                                count++;
+                            }
+                        });
+                    });
+                    return count === 0 ? 0 : (totalSum / count);
+                };
+
+                const getMeaning = (score) => {
+                    if (score >= 4.5) return { text: 'มากที่สุด', color: 'text-emerald-700 bg-emerald-100 border-emerald-200' };
+                    if (score >= 3.5) return { text: 'มาก', color: 'text-blue-700 bg-blue-100 border-blue-200' };
+                    if (score >= 2.5) return { text: 'ปานกลาง', color: 'text-amber-700 bg-amber-100 border-amber-200' };
+                    if (score >= 1.5) return { text: 'น้อย', color: 'text-orange-700 bg-orange-100 border-orange-200' };
+                    return { text: 'น้อยที่สุด', color: 'text-red-700 bg-red-100 border-red-200' };
+                };
+
+                const part1Keys = ['p2_1_q1', 'p2_1_q2', 'p2_1_q3'];
+                const part2Keys = ['p2_2_q4', 'p2_2_q5', 'p2_2_q6', 'p2_2_q7', 'p2_2_q8', 'p2_2_q9'];
+                const part3Keys = ['p3'];
+
+                const part1Avg = calcAvg(part1Keys);
+                const part2Avg = calcAvg(part2Keys);
+                const part3Avg = calcAvg(part3Keys);
+
+                const itemAvgs = {};
+                [...part1Keys, ...part2Keys, ...part3Keys].forEach(k => {
+                    itemAvgs[k] = calcAvg([k]);
+                });
+
+                return {
+                    part1: { avg: part1Avg.toFixed(2), meaning: getMeaning(part1Avg), keys: part1Keys, title: "ด้านที่ 2.1 การเข้าถึงและการออกแบบ" },
+                    part2: { avg: part2Avg.toFixed(2), meaning: getMeaning(part2Avg), keys: part2Keys, title: "ด้านที่ 2.2 เนื้อหาและการให้บริการ" },
+                    part3: { avg: part3Avg.toFixed(2), meaning: getMeaning(part3Avg), keys: part3Keys, title: "ส่วนที่ 3 ความพึงพอใจในภาพรวม" },
+                    itemAvgs,
+                    getMeaning
+                };
+            }, [data]);
+
             if (error) {
                  return (
                     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans">
@@ -387,6 +436,7 @@
                         {/* Tabs */}
                         <div className="flex space-x-2 mb-6 border-b border-slate-200 overflow-x-auto pb-2 no-scrollbar">
                             <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={<BarChart2 size={18} />} label="ภาพรวม" />
+                            <TabButton active={activeTab === 'summary'} onClick={() => setActiveTab('summary')} icon={<ClipboardList size={18} />} label="สรุปผลรายด้าน" />
                             <TabButton active={activeTab === 'demographics'} onClick={() => setActiveTab('demographics')} icon={<PieChartIcon size={18} />} label="ประชากร" />
                             <TabButton active={activeTab === 'details'} onClick={() => setActiveTab('details')} icon={<ListIcon size={18} />} label="ข้อมูลดิบ" />
                         </div>
@@ -444,6 +494,54 @@
                             </div>
                         )}
 
+                        {/* --- NEW: Summary Tab (สรุปผลรายด้าน) --- */}
+                        {activeTab === 'summary' && categoryStats && (
+                            <div className="space-y-6 md:space-y-8 animate-fade-in">
+                                {[categoryStats.part1, categoryStats.part2, categoryStats.part3].map((part, index) => (
+                                    <div key={index} className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-50 pb-4">
+                                            <h2 className="text-lg md:text-xl font-bold text-slate-700 flex items-center gap-2">
+                                                <ClipboardList className="text-blue-500 shrink-0" size={24} />
+                                                {part.title}
+                                            </h2>
+                                            <div className="flex items-center gap-3 self-start md:self-auto bg-slate-50 px-4 py-2 rounded-xl">
+                                                <div className="text-center">
+                                                    <span className="text-xs text-slate-500 block uppercase tracking-wider">คะแนนเฉลี่ย</span>
+                                                    <span className="text-2xl font-bold text-slate-800">{part.avg}</span>
+                                                </div>
+                                                <span className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${part.meaning.color}`}>
+                                                    {part.meaning.text}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="space-y-4">
+                                            {part.keys.map(key => {
+                                                const itemScore = categoryStats.itemAvgs[key];
+                                                const itemMeaning = categoryStats.getMeaning(itemScore);
+                                                const percent = (itemScore / 5) * 100;
+                                                return (
+                                                    <div key={key} className="bg-slate-50/50 hover:bg-slate-50 p-4 rounded-xl border border-transparent hover:border-slate-100 transition-colors">
+                                                        <div className="flex justify-between items-center mb-2 gap-4">
+                                                            <span className="text-sm md:text-base font-medium text-slate-600 line-clamp-1 flex-1" title={QuestionLabel[key]}>{QuestionLabel[key]}</span>
+                                                            <div className="flex items-center gap-3 shrink-0">
+                                                                <span className="text-lg font-bold text-slate-700">{itemScore.toFixed(2)}</span>
+                                                                <span className={`hidden sm:inline-block px-2 py-0.5 rounded text-xs font-semibold ${itemMeaning.color} border-none bg-opacity-30`}>{itemMeaning.text}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                                            <div className="bg-gradient-to-r from-blue-400 to-indigo-400 h-2.5 rounded-full" style={{ width: `${percent}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Demographics Tab */}
                         {activeTab === 'demographics' && (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 animate-fade-in">
                                 <PieChartCard title="ช่วงอายุ" data={pieData.age} colors={COLORS.pie} />
