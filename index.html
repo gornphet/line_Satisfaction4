@@ -91,6 +91,9 @@
         const RefreshCw = (props) => <IconBase {...props} d={<><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>} />;
         const AlertTriangle = (props) => <IconBase {...props} d={<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>} />;
         const ClipboardList = (props) => <IconBase {...props} d={<><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></>} />;
+        const TrendingUp = (props) => <IconBase {...props} d={<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>} />;
+        const TrendingDown = (props) => <IconBase {...props} d={<><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></>} />;
+        const UserGroup = (props) => <IconBase {...props} d={<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>} />;
 
         // ***************************************************************
         // ⚠️ สำคัญ: ใส่ลิงก์ CSV ตรงนี้ 
@@ -111,10 +114,17 @@
             male: '#93C5FD',       female: '#F472B6',     pie: ['#60A5FA', '#34D399', '#FBBF24', '#F87171', '#A78BFA']
         };
 
+        // ชื่อหัวข้อที่ตรงกับความต้องการล่าสุด
         const QuestionLabel = {
-            p2_1_q1: '2.1 ข้อ 1 (ความสะดวก)', p2_1_q2: '2.1 ข้อ 2 (ความสวยงาม)', p2_1_q3: '2.1 ข้อ 3 (การจัดวาง)',
-            p2_2_q4: '2.2 ข้อ 4 (ความถูกต้อง)', p2_2_q5: '2.2 ข้อ 5 (ความรวดเร็ว)', p2_2_q6: '2.2 ข้อ 6 (ความชัดเจน)',
-            p2_2_q7: '2.2 ข้อ 7 (ประโยชน์)', p2_2_q8: '2.2 ข้อ 8 (ความพึงพอใจบริการ)', p2_2_q9: '2.2 ข้อ 9 (การแนะนำบอกต่อ)',
+            p2_1_q1: '2.1 ข้อ 1 (การจัดวางเมนู)', 
+            p2_1_q2: '2.1 ข้อ 2 (การติดตั้งและใช้งาน)', 
+            p2_1_q3: '2.1 ข้อ 3 (การค้นหาข้อมูลในส่วนต่างๆ)',
+            p2_2_q4: '2.2 ข้อ 4 (ความเป็นปัจจุบันของข้อมูล)', 
+            p2_2_q5: '2.2 ข้อ 5 (เนื้อหาเกี่ยวกับ ศพด.)', 
+            p2_2_q6: '2.2 ข้อ 6 (ข้อมูลด้านกีฬา ศาสนา ประเพณี วัฒนธรรม)',
+            p2_2_q7: '2.2 ข้อ 7 (การยืม-คืนอุปกรณ์กีฬา)', 
+            p2_2_q8: '2.2 ข้อ 8 (เว็บไซต์กองการศึกษา)', 
+            p2_2_q9: '2.2 ข้อ 9 (ติดต่อเจ้าหน้าที่)',
             p3: 'ส่วนที่ 3 (ภาพรวม)'
         };
 
@@ -127,9 +137,7 @@
             const [activeTab, setActiveTab] = useState('overview');
 
             const fetchData = async () => {
-                if (!GOOGLE_SHEET_CSV_URL) {
-                    return;
-                }
+                if (!GOOGLE_SHEET_CSV_URL) return;
 
                 if (!GOOGLE_SHEET_CSV_URL.includes("output=csv")) {
                     setError("รูปแบบลิงก์ไม่ถูกต้อง");
@@ -147,49 +155,83 @@
                         header: true,
                         skipEmptyLines: true,
                         complete: (results) => {
-                            if (results.errors.length > 0) {
-                                console.error("CSV Parse Error Details:", results.errors);
-                            }
+                            // Helper to match columns flexibly (Case insensitive & Trimmed)
+                            const findCol = (row, candidates) => {
+                                const keys = Object.keys(row);
+                                // 1. Try exact match (normalized)
+                                const exact = keys.find(k => candidates.includes(k.trim().toLowerCase()));
+                                if (exact) return exact;
+                                // 2. Try partial match (useful for Thai labels like "1. เพศ")
+                                return keys.find(k => candidates.some(c => k.includes(c)));
+                            };
 
                             const parsedData = results.data
-                                .filter(row => row.gender || row.age) 
-                                .map((row, index) => ({
-                                    id: row.id || `row-${index + 1}`,
-                                    gender: row.gender,
-                                    age: row.age,
-                                    status: row.status,
-                                    education: row.education,
-                                    scores: {
-                                        p2_1_q1: parseFloat(row.p2_1_q1) || 0,
-                                        p2_1_q2: parseFloat(row.p2_1_q2) || 0,
-                                        p2_1_q3: parseFloat(row.p2_1_q3) || 0,
-                                        p2_2_q4: parseFloat(row.p2_2_q4) || 0,
-                                        p2_2_q5: parseFloat(row.p2_2_q5) || 0,
-                                        p2_2_q6: parseFloat(row.p2_2_q6) || 0,
-                                        p2_2_q7: parseFloat(row.p2_2_q7) || 0,
-                                        p2_2_q8: parseFloat(row.p2_2_q8) || 0,
-                                        p2_2_q9: parseFloat(row.p2_2_q9) || 0,
-                                        p3: parseFloat(row.p3) || 0
-                                    }
-                                }));
+                                .map((row, index) => {
+                                    // Detect keys dynamically for each row
+                                    const genderKey = findCol(row, ['gender', 'เพศ', 'sex']);
+                                    const ageKey = findCol(row, ['age', 'อายุ']);
+                                    
+                                    // If row has no gender or age, consider it empty/invalid
+                                    if (!row[genderKey] && !row[ageKey]) return null;
+
+                                    const eduKey = findCol(row, ['education', 'การศึกษา', 'ระดับการศึกษา']);
+                                    const statusKey = findCol(row, ['status', 'สถานะ']);
+                                    
+                                    // Helper for scores - UPDATED TO MATCH NEW QUESTION LABELS
+                                    const getScore = (cands) => {
+                                        const col = findCol(row, cands);
+                                        // Handle cases where the cell contains text like "5 - มากที่สุด" -> extract "5"
+                                        if (col && row[col]) {
+                                            const val = row[col];
+                                            if (typeof val === 'number') return val;
+                                            if (typeof val === 'string') {
+                                                const match = val.match(/^(\d+(\.\d+)?)/);
+                                                if (match) return parseFloat(match[0]);
+                                            }
+                                        }
+                                        return 0;
+                                    };
+
+                                    return {
+                                        id: row.id || `row-${index + 1}`,
+                                        gender: row[genderKey],
+                                        age: row[ageKey],
+                                        status: row[statusKey],
+                                        education: row[eduKey],
+                                        scores: {
+                                            // Updated keywords to match the user's specific question text
+                                            p2_1_q1: getScore(['p2_1_q1', 'ด้าน 2.1 ข้อ 1', 'ข้อ 1', 'การจัดวางเมนู', 'ความสะดวก']), 
+                                            p2_1_q2: getScore(['p2_1_q2', 'ด้าน 2.1 ข้อ 2', 'ข้อ 2', 'การติดตั้งและใช้งาน', 'การติดตั้ง', 'ความสวยงาม']),
+                                            p2_1_q3: getScore(['p2_1_q3', 'ด้าน 2.1 ข้อ 3', 'ข้อ 3', 'การค้นหาข้อมูล', 'การค้นหา', 'การจัดวาง']),
+                                            p2_2_q4: getScore(['p2_2_q4', 'ด้าน 2.2 ข้อ 4', 'ข้อ 4', 'ความเป็นปัจจุบัน', 'ความถูกต้อง']),
+                                            p2_2_q5: getScore(['p2_2_q5', 'ด้าน 2.2 ข้อ 5', 'ข้อ 5', 'ศพด', 'ศูนย์พัฒนาเด็กเล็ก', 'ความรวดเร็ว']),
+                                            p2_2_q6: getScore(['p2_2_q6', 'ด้าน 2.2 ข้อ 6', 'ข้อ 6', 'กีฬา', 'ศาสนา', 'วัฒนธรรม', 'ความชัดเจน']),
+                                            p2_2_q7: getScore(['p2_2_q7', 'ด้าน 2.2 ข้อ 7', 'ข้อ 7', 'ยืม-คืน', 'อุปกรณ์กีฬา', 'ประโยชน์']),
+                                            p2_2_q8: getScore(['p2_2_q8', 'ด้าน 2.2 ข้อ 8', 'ข้อ 8', 'เว็บไซต์', 'ความพึงพอใจ']),
+                                            p2_2_q9: getScore(['p2_2_q9', 'ด้าน 2.2 ข้อ 9', 'ข้อ 9', 'ติดต่อเจ้าหน้าที่', 'การแนะนำ']),
+                                            p3: getScore(['p3', 'ส่วนที่ 3', 'ภาพรวม'])
+                                        }
+                                    };
+                                })
+                                .filter(item => item !== null); // Remove null rows
                             
                             if (parsedData.length > 0) {
                                 setData(parsedData);
                             } else {
-                                setError("เชื่อมต่อได้ แต่ไม่พบข้อมูลในตาราง");
-                                setErrorDetails("โปรดตรวจสอบว่า: \n1. คุณได้เปลี่ยนชื่อหัวคอลัมน์ (Header) แถวที่ 1 เป็นภาษาอังกฤษตามคู่มือแล้ว\n2. มีข้อมูลการตอบกลับใน Sheet นั้นๆ");
+                                const foundColumns = results.meta.fields ? results.meta.fields.join(', ') : "ไม่พบคอลัมน์";
+                                setError("เชื่อมต่อได้ แต่ไม่พบข้อมูลที่ตรงเงื่อนไข");
+                                setErrorDetails(`ระบบอ่านคอลัมน์ได้ดังนี้: [${foundColumns}]\n\nโปรดตรวจสอบว่ามีคอลัมน์ 'gender'/'เพศ' และ 'age'/'อายุ' หรือไม่`);
                             }
                             setLoading(false);
                         },
                         error: (err) => {
-                            console.error("CSV Parse Error:", err);
+                            console.error("CSV Error:", err);
                             setError("ไม่สามารถดึงข้อมูลจาก Google Sheet ได้");
-                            setErrorDetails("สาเหตุที่เป็นไปได้:\n1. ลิงก์ผิด หรือยังไม่ได้กด Publish to web\n2. ติดปัญหา Browser Block (CORS) - ลองเปิดด้วย Live Server");
+                            setErrorDetails("1. ลิงก์อาจผิด (ต้องใช้ Publish to web)\n2. ติดปัญหา Browser Block (CORS)");
                             setLoading(false);
                         }
                     });
                 } catch (err) {
-                    console.error("Fetch Error:", err);
                     setError("เกิดข้อผิดพลาดในการเชื่อมต่อ");
                     setLoading(false);
                 }
@@ -313,7 +355,6 @@
                     const avg = sum / scores.length;
 
                     const sumSqDiff = scores.reduce((a, b) => a + Math.pow(b - avg, 2), 0);
-                    // Use Sample S.D. (n-1) if n > 1, else 0
                     const sd = scores.length > 1 ? Math.sqrt(sumSqDiff / (scores.length - 1)) : 0;
 
                     return { avg, sd };
@@ -566,6 +607,7 @@
                             </div>
                         )}
 
+                        {/* Details Tab */}
                         {activeTab === 'details' && (
                             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
                                 <div className="p-4 md:p-6 border-b border-slate-100">
