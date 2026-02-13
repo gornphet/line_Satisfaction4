@@ -289,22 +289,34 @@
                 });
             }, [data]);
 
-            // --- สรุปผลรายด้าน (Category Stats) ---
+            // --- สรุปผลรายด้าน (Category Stats with S.D.) ---
             const categoryStats = useMemo(() => {
                 if (data.length === 0) return null;
 
-                const calcAvg = (keys) => {
-                    let totalSum = 0;
-                    let count = 0;
+                const getScores = (keys) => {
+                    const scores = [];
                     data.forEach(d => {
                         keys.forEach(k => {
                             if(typeof d.scores[k] === 'number') {
-                                totalSum += d.scores[k];
-                                count++;
+                                scores.push(d.scores[k]);
                             }
                         });
                     });
-                    return count === 0 ? 0 : (totalSum / count);
+                    return scores;
+                };
+
+                const calcStats = (keys) => {
+                    const scores = getScores(keys);
+                    if (scores.length === 0) return { avg: 0, sd: 0 };
+
+                    const sum = scores.reduce((a, b) => a + b, 0);
+                    const avg = sum / scores.length;
+
+                    const sumSqDiff = scores.reduce((a, b) => a + Math.pow(b - avg, 2), 0);
+                    // Use Sample S.D. (n-1) if n > 1, else 0
+                    const sd = scores.length > 1 ? Math.sqrt(sumSqDiff / (scores.length - 1)) : 0;
+
+                    return { avg, sd };
                 };
 
                 const getMeaning = (score) => {
@@ -319,20 +331,20 @@
                 const part2Keys = ['p2_2_q4', 'p2_2_q5', 'p2_2_q6', 'p2_2_q7', 'p2_2_q8', 'p2_2_q9'];
                 const part3Keys = ['p3'];
 
-                const part1Avg = calcAvg(part1Keys);
-                const part2Avg = calcAvg(part2Keys);
-                const part3Avg = calcAvg(part3Keys);
+                const part1Stats = calcStats(part1Keys);
+                const part2Stats = calcStats(part2Keys);
+                const part3Stats = calcStats(part3Keys);
 
-                const itemAvgs = {};
+                const itemStats = {};
                 [...part1Keys, ...part2Keys, ...part3Keys].forEach(k => {
-                    itemAvgs[k] = calcAvg([k]);
+                    itemStats[k] = calcStats([k]);
                 });
 
                 return {
-                    part1: { avg: part1Avg.toFixed(2), meaning: getMeaning(part1Avg), keys: part1Keys, title: "ด้านที่ 2.1 การเข้าถึงและการออกแบบ" },
-                    part2: { avg: part2Avg.toFixed(2), meaning: getMeaning(part2Avg), keys: part2Keys, title: "ด้านที่ 2.2 เนื้อหาและการให้บริการ" },
-                    part3: { avg: part3Avg.toFixed(2), meaning: getMeaning(part3Avg), keys: part3Keys, title: "ส่วนที่ 3 ความพึงพอใจในภาพรวม" },
-                    itemAvgs,
+                    part1: { ...part1Stats, avgStr: part1Stats.avg.toFixed(2), sdStr: part1Stats.sd.toFixed(2), meaning: getMeaning(part1Stats.avg), keys: part1Keys, title: "ด้านที่ 2.1 การเข้าถึงและการออกแบบ" },
+                    part2: { ...part2Stats, avgStr: part2Stats.avg.toFixed(2), sdStr: part2Stats.sd.toFixed(2), meaning: getMeaning(part2Stats.avg), keys: part2Keys, title: "ด้านที่ 2.2 เนื้อหาและการให้บริการ" },
+                    part3: { ...part3Stats, avgStr: part3Stats.avg.toFixed(2), sdStr: part3Stats.sd.toFixed(2), meaning: getMeaning(part3Stats.avg), keys: part3Keys, title: "ส่วนที่ 3 ความพึงพอใจในภาพรวม" },
+                    itemStats,
                     getMeaning
                 };
             }, [data]);
@@ -506,8 +518,9 @@
                                             </h2>
                                             <div className="flex items-center gap-3 self-start md:self-auto bg-slate-50 px-4 py-2 rounded-xl">
                                                 <div className="text-center">
-                                                    <span className="text-xs text-slate-500 block uppercase tracking-wider">คะแนนเฉลี่ย</span>
-                                                    <span className="text-2xl font-bold text-slate-800">{part.avg}</span>
+                                                    <span className="text-xs text-slate-500 block uppercase tracking-wider">คะแนนเฉลี่ย (x̄)</span>
+                                                    <span className="text-2xl font-bold text-slate-800">{part.avgStr}</span>
+                                                    <span className="text-xs text-slate-400 block mt-1">S.D. {part.sdStr}</span>
                                                 </div>
                                                 <span className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${part.meaning.color}`}>
                                                     {part.meaning.text}
@@ -517,16 +530,19 @@
                                         
                                         <div className="space-y-4">
                                             {part.keys.map(key => {
-                                                const itemScore = categoryStats.itemAvgs[key];
-                                                const itemMeaning = categoryStats.getMeaning(itemScore);
-                                                const percent = (itemScore / 5) * 100;
+                                                const itemStats = categoryStats.itemStats[key];
+                                                const itemMeaning = categoryStats.getMeaning(itemStats.avg);
+                                                const percent = (itemStats.avg / 5) * 100;
                                                 return (
                                                     <div key={key} className="bg-slate-50/50 hover:bg-slate-50 p-4 rounded-xl border border-transparent hover:border-slate-100 transition-colors">
                                                         <div className="flex justify-between items-center mb-2 gap-4">
                                                             <span className="text-sm md:text-base font-medium text-slate-600 line-clamp-1 flex-1" title={QuestionLabel[key]}>{QuestionLabel[key]}</span>
-                                                            <div className="flex items-center gap-3 shrink-0">
-                                                                <span className="text-lg font-bold text-slate-700">{itemScore.toFixed(2)}</span>
-                                                                <span className={`hidden sm:inline-block px-2 py-0.5 rounded text-xs font-semibold ${itemMeaning.color} border-none bg-opacity-30`}>{itemMeaning.text}</span>
+                                                            <div className="flex flex-col items-end shrink-0">
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="text-lg font-bold text-slate-700">{itemStats.avg.toFixed(2)}</span>
+                                                                    <span className={`hidden sm:inline-block px-2 py-0.5 rounded text-xs font-semibold ${itemMeaning.color} border-none bg-opacity-30`}>{itemMeaning.text}</span>
+                                                                </div>
+                                                                <span className="text-[10px] text-slate-400">S.D. {itemStats.sd.toFixed(2)}</span>
                                                             </div>
                                                         </div>
                                                         <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
