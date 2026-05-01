@@ -248,6 +248,98 @@
                 return { total, males, females, averageScore };
             }, [data]);
 
+            // --- Detailed Table Data (NEW) ---
+            const detailedTableData = useMemo(() => {
+                if (data.length === 0) return null;
+
+                const calc = (keys) => {
+                    let c5=0, c4=0, c3=0, c2=0, c1=0;
+                    let scoresArr = [];
+                    let respondents = 0;
+
+                    data.forEach(d => {
+                        let answeredInGroup = false;
+                        keys.forEach(k => {
+                            const s = d.scores[k];
+                            if (typeof s === 'number' && s > 0) {
+                                scoresArr.push(s);
+                                if (s === 5) c5++;
+                                else if (s === 4) c4++;
+                                else if (s === 3) c3++;
+                                else if (s === 2) c2++;
+                                else if (s === 1) c1++;
+                                answeredInGroup = true;
+                            }
+                        });
+                        if (answeredInGroup) respondents++;
+                    });
+
+                    const totalScores = scoresArr.length;
+                    if (totalScores === 0) return { c5:0, c4:0, c3:0, c2:0, c1:0, total:0, percent:'0.00', mean:'0.00', sd:'0.00', meaning:'' };
+
+                    const sum = scoresArr.reduce((a,b)=>a+b, 0);
+                    const mean = sum / totalScores;
+                    const sumSqDiff = scoresArr.reduce((a,b)=>a + Math.pow(b-mean, 2), 0);
+                    const sd = totalScores > 1 ? Math.sqrt(sumSqDiff / (totalScores - 1)) : 0;
+                    const percent = (mean / 5) * 100;
+
+                    let meaning = '';
+                    if (mean >= 4.5) meaning = 'มากที่สุด';
+                    else if (mean >= 3.5) meaning = 'มาก';
+                    else if (mean >= 2.5) meaning = 'ปานกลาง';
+                    else if (mean >= 1.5) meaning = 'น้อย';
+                    else meaning = 'น้อยที่สุด';
+
+                    return { c5, c4, c3, c2, c1, total: respondents, percent: percent.toFixed(2), mean: mean.toFixed(2), sd: sd.toFixed(2), meaning };
+                };
+
+                const keys = {
+                    p2_1_q1: ['p2_1_q1'], p2_1_q2: ['p2_1_q2'], p2_1_q3: ['p2_1_q3'],
+                    part1: ['p2_1_q1', 'p2_1_q2', 'p2_1_q3'],
+                    p2_2_q4: ['p2_2_q4'], p2_2_q5: ['p2_2_q5'], p2_2_q6: ['p2_2_q6'], p2_2_q7: ['p2_2_q7'], p2_2_q8: ['p2_2_q8'], p2_2_q9: ['p2_2_q9'],
+                    part2: ['p2_2_q4', 'p2_2_q5', 'p2_2_q6', 'p2_2_q7', 'p2_2_q8', 'p2_2_q9'],
+                    p3: ['p3'],
+                    part3: ['p3'],
+                    total: ['p2_1_q1', 'p2_1_q2', 'p2_1_q3', 'p2_2_q4', 'p2_2_q5', 'p2_2_q6', 'p2_2_q7', 'p2_2_q8', 'p2_2_q9', 'p3']
+                };
+
+                const res = {};
+                for (const [k, arr] of Object.entries(keys)) {
+                    res[k] = calc(arr);
+                }
+                return res;
+            }, [data]);
+
+            // Table Row Component (Internal)
+            const TableRow = ({ num, text, dataObj, isSubtotal, isTotal }) => {
+                if (!dataObj) return null;
+                let className = "hover:bg-blue-50/50 transition-colors";
+                if (isSubtotal) className = "bg-slate-100 font-bold text-slate-700";
+                if (isTotal) className = "bg-blue-100 font-bold text-blue-900 border-t-2 border-blue-300";
+
+                const meaningColor = dataObj.meaning === 'มากที่สุด' ? 'text-emerald-600' :
+                                     dataObj.meaning === 'มาก' ? 'text-blue-600' :
+                                     dataObj.meaning === 'ปานกลาง' ? 'text-amber-600' :
+                                     dataObj.meaning === 'น้อย' ? 'text-orange-600' : 'text-red-600';
+
+                return (
+                    <tr className={className}>
+                        <td className="border p-2">{num}</td>
+                        <td className={`border p-2 text-left ${isSubtotal||isTotal?'text-right pr-4':''}`}>{text}</td>
+                        <td className="border p-2 text-slate-500">{dataObj.c5}</td>
+                        <td className="border p-2 text-slate-500">{dataObj.c4}</td>
+                        <td className="border p-2 text-slate-500">{dataObj.c3}</td>
+                        <td className="border p-2 text-slate-500">{dataObj.c2}</td>
+                        <td className="border p-2 text-slate-500">{dataObj.c1}</td>
+                        <td className="border p-2 font-semibold">{dataObj.total}</td>
+                        <td className="border p-2">{dataObj.percent}</td>
+                        <td className="border p-2 font-bold text-slate-700">{dataObj.mean}</td>
+                        <td className="border p-2 text-slate-500">{dataObj.sd}</td>
+                        <td className={`border p-2 font-semibold ${meaningColor}`}>{dataObj.meaning}</td>
+                    </tr>
+                );
+            };
+
             // --- Individual Satisfaction Summary (New Request) ---
             const satisfactionStats = useMemo(() => {
                 let highCount = 0; // All items >= 4
@@ -551,28 +643,62 @@
                                 </div>
                                 {/* ----------------------------------------------------- */}
 
-                                <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
-                                    <div className="mb-4 md:mb-6 border-b border-slate-50 pb-4">
-                                        <h2 className="text-lg md:text-xl font-bold text-slate-700 flex items-center gap-2">
-                                            <BookOpen className="text-blue-400 shrink-0" size={24} />
-                                            <span className="truncate">แยกตามวุฒิการศึกษา</span>
-                                        </h2>
-                                        <p className="text-xs md:text-sm text-slate-400 mt-1">คะแนนเฉลี่ยรายข้อ (ปริญญาตรี vs ต่ำกว่า)</p>
+                                {/* --- NEW: Detailed Summary Table --- */}
+                                {detailedTableData && (
+                                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                                        <div className="mb-4 border-b border-slate-50 pb-4">
+                                            <h2 className="text-lg md:text-xl font-bold text-slate-700 flex items-center gap-2">
+                                                <ClipboardList className="text-blue-500 shrink-0" size={24} />
+                                                สรุปรายละเอียดจำนวนผู้ตอบสะสมรายข้อ (รวมข้อมูลปี 2566 - 2567)
+                                            </h2>
+                                        </div>
+                                        <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                            <table className="w-full text-sm text-center border-collapse min-w-[900px]">
+                                                <thead className="bg-slate-100 text-slate-700">
+                                                    <tr>
+                                                        <th rowSpan="2" className="border p-2 whitespace-nowrap w-16">ข้อ</th>
+                                                        <th rowSpan="2" className="border p-2 text-left min-w-[200px]">ประเด็นการประเมิน</th>
+                                                        <th colSpan="5" className="border p-2">จำนวนผู้ตอบรายข้อ (คน)</th>
+                                                        <th rowSpan="2" className="border p-2 w-20">รวมผู้ตอบ<br/>(คน)</th>
+                                                        <th rowSpan="2" className="border p-2 w-16">ร้อยละ</th>
+                                                        <th rowSpan="2" className="border p-2 w-16">x̄</th>
+                                                        <th rowSpan="2" className="border p-2 w-16">S.D.</th>
+                                                        <th rowSpan="2" className="border p-2 w-24">แปลผล</th>
+                                                    </tr>
+                                                    <tr className="bg-slate-50 text-slate-600 text-xs">
+                                                        <th className="border p-1 w-10">5</th>
+                                                        <th className="border p-1 w-10">4</th>
+                                                        <th className="border p-1 w-10">3</th>
+                                                        <th className="border p-1 w-10">2</th>
+                                                        <th className="border p-1 w-10">1</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    <tr className="bg-slate-50 font-bold text-left"><td colSpan="12" className="p-2 border">ด้านที่ 2.1 การเข้าถึงและการออกแบบ</td></tr>
+                                                    <TableRow num="1" text="การจัดวางเมนู" dataObj={detailedTableData.p2_1_q1} />
+                                                    <TableRow num="2" text="การติดตั้งและใช้งาน" dataObj={detailedTableData.p2_1_q2} />
+                                                    <TableRow num="3" text="การค้นหาข้อมูลในส่วนต่างๆ" dataObj={detailedTableData.p2_1_q3} />
+                                                    <TableRow num="" text="ผลรวมด้านที่ 2.1" dataObj={detailedTableData.part1} isSubtotal={true} />
+
+                                                    <tr className="bg-slate-50 font-bold text-left"><td colSpan="12" className="p-2 border">ด้านที่ 2.2 เนื้อหาและการให้บริการ</td></tr>
+                                                    <TableRow num="4" text="ความเป็นปัจจุบันของข้อมูล" dataObj={detailedTableData.p2_2_q4} />
+                                                    <TableRow num="5" text="เนื้อหาเกี่ยวกับ ศพด." dataObj={detailedTableData.p2_2_q5} />
+                                                    <TableRow num="6" text="ข้อมูลด้านกีฬา ศาสนา ประเพณี วัฒนธรรม" dataObj={detailedTableData.p2_2_q6} />
+                                                    <TableRow num="7" text="การยืม-คืนอุปกรณ์กีฬา" dataObj={detailedTableData.p2_2_q7} />
+                                                    <TableRow num="8" text="เว็บไซต์กองการศึกษา" dataObj={detailedTableData.p2_2_q8} />
+                                                    <TableRow num="9" text="ติดต่อเจ้าหน้าที่" dataObj={detailedTableData.p2_2_q9} />
+                                                    <TableRow num="" text="ผลรวมด้านที่ 2.2" dataObj={detailedTableData.part2} isSubtotal={true} />
+
+                                                    <tr className="bg-slate-50 font-bold text-left"><td colSpan="12" className="p-2 border">ส่วนที่ 3 ความพึงพอใจในภาพรวม</td></tr>
+                                                    <TableRow num="-" text="ภาพรวม" dataObj={detailedTableData.p3} />
+                                                    <TableRow num="" text="ผลรวมส่วนที่ 3" dataObj={detailedTableData.part3} isSubtotal={true} />
+
+                                                    <TableRow num="" text="ผลรวมทุกด้าน" dataObj={detailedTableData.total} isTotal={true} />
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
-                                    <div className="h-[300px] md:h-[400px]">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={scoreByEducation} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                                <XAxis dataKey="shortName" tick={{fontSize: 10, fill: '#64748b'}} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
-                                                <YAxis domain={[0, 5]} allowDecimals={false} tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} />
-                                                <RechartsTooltip content={<CustomTooltip />} cursor={{fill: '#f1f5f9'}} />
-                                                <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{fontSize: '12px'}} />
-                                                <Bar dataKey="ปริญญาตรี" fill={COLORS.primary} radius={[4, 4, 0, 0]} name="ปริญญาตรี" />
-                                                <Bar dataKey="ต่ำกว่าปริญญาตรี" fill={COLORS.secondary} radius={[4, 4, 0, 0]} name="ต่ำกว่า ป.ตรี" />
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
+                                )}
 
                                 <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
                                     <div className="mb-4 md:mb-6 border-b border-slate-50 pb-4">
