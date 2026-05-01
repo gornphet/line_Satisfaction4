@@ -94,6 +94,7 @@
         const ThumbsUp = (props) => <IconBase {...props} d={<><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></>} />;
         const TrendingDown = (props) => <IconBase {...props} d={<><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></>} />;
         const Percent = (props) => <IconBase {...props} d={<><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></>} />;
+        const Search = (props) => <IconBase {...props} d={<><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>} />;
 
         // ***************************************************************
         // ⚠️ สำคัญ: ใส่ลิงก์ CSV ตรงนี้ 
@@ -114,7 +115,6 @@
             male: '#93C5FD',       female: '#F472B6',     pie: ['#60A5FA', '#34D399', '#FBBF24', '#F87171', '#A78BFA']
         };
 
-        // ชื่อหัวข้อที่ตรงกับความต้องการล่าสุด
         const QuestionLabel = {
             p2_1_q1: '2.1 ข้อ 1 (การจัดวางเมนู)', 
             p2_1_q2: '2.1 ข้อ 2 (การติดตั้งและใช้งาน)', 
@@ -135,6 +135,7 @@
             const [error, setError] = useState(null);
             const [errorDetails, setErrorDetails] = useState(null);
             const [activeTab, setActiveTab] = useState('overview');
+            const [mappedColsInfo, setMappedColsInfo] = useState({}); // สำหรับแสดง Debug
 
             const fetchData = async () => {
                 if (!GOOGLE_SHEET_CSV_URL) return;
@@ -149,7 +150,7 @@
                 setError(null);
                 setErrorDetails(null);
 
-                // เพิ่ม Timestamp เพื่อป้องกัน Browser จำค่าเดิม (Cache Buster)
+                // ป้องกัน Browser Cache โดยสมบูรณ์
                 const fetchUrl = GOOGLE_SHEET_CSV_URL + (GOOGLE_SHEET_CSV_URL.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
 
                 try {
@@ -158,12 +159,22 @@
                         header: true,
                         skipEmptyLines: true,
                         complete: (results) => {
-                            // Helper to match columns flexibly with Exclusion logic
-                            const findCol = (row, candidates, excludes = []) => {
-                                const keys = Object.keys(row);
-                                const exact = keys.find(k => candidates.includes(k.trim().toLowerCase()));
+                            if (results.data.length === 0) {
+                                setError("ไม่พบข้อมูล");
+                                setLoading(false);
+                                return;
+                            }
+
+                            // ใช้งาน headers จริงๆ จาก Google Sheet เพื่อความชัวร์ที่สุด
+                            const headers = results.meta.fields || Object.keys(results.data[0]);
+
+                            // Helper: ค้นหาคอลัมน์เพียงครั้งเดียว
+                            const findCol = (candidates, excludes = []) => {
+                                // พยายามหาคำเป๊ะๆ ก่อน
+                                const exact = headers.find(k => candidates.includes(k.trim().toLowerCase()));
                                 if (exact) return exact;
-                                return keys.find(k => {
+                                // หาบางส่วน (Partial) โดยต้องไม่ติดเงื่อนไข Exclude
+                                return headers.find(k => {
                                     const kLower = k.toLowerCase();
                                     const hasMatch = candidates.some(c => kLower.includes(c.toLowerCase()));
                                     const hasExclude = excludes.length > 0 && excludes.some(e => kLower.includes(e.toLowerCase()));
@@ -171,20 +182,38 @@
                                 });
                             };
 
+                            const genderKey = findCol(['gender', 'เพศ', 'sex']);
+                            const ageKey = findCol(['age', 'อายุ']);
+                            const eduKey = findCol(['education', 'การศึกษา', 'ระดับการศึกษา']);
+                            const statusKey = findCol(['status', 'สถานะ']);
+
+                            // ปรับแต่ง Keyword อย่างละเอียดให้ตรงกับข้อความใน Google Form จริงๆ เพื่อป้องกันการทับซ้อนเด็ดขาด
+                            const colQ1 = findCol(['จัดวางเมนู', 'p2_1_q1']);
+                            const colQ2 = findCol(['ติดตั้งและใช้งาน', 'p2_1_q2']);
+                            const colQ3 = findCol(['ค้นหาข้อมูล', 'p2_1_q3']); 
+                            const colQ4 = findCol(['ความเป็นปัจจุบัน', 'ทันเหตุการณ์', 'p2_2_q4']);
+                            const colQ5 = findCol(['ดูแลเด็กเล็ก', 'p2_2_q5']);
+                            const colQ6 = findCol(['ศาสนา', 'ประเพณี', 'p2_2_q6']);
+                            const colQ7 = findCol(['ยืม-คืน', 'ยืมคืน', 'p2_2_q7']);
+                            const colQ8 = findCol(['เว็บไซต์', 'ลิงก์ไม่เสีย', 'p2_2_q8']);
+                            const colQ9 = findCol(['ติดต่อเจ้าหน้าที่', 'p2_2_q9']);
+                            const colQ10 = findCol(['ในภาพรวม', 'p3']);
+
+                            // บันทึกการ Map เพื่อแสดงใน Debug Box
+                            setMappedColsInfo({
+                                gender: genderKey, age: ageKey, edu: eduKey, status: statusKey,
+                                q1: colQ1, q2: colQ2, q3: colQ3, q4: colQ4, q5: colQ5,
+                                q6: colQ6, q7: colQ7, q8: colQ8, q9: colQ9, q10: colQ10,
+                                allHeaders: headers
+                            });
+
                             const parsedData = results.data
                                 .map((row, index) => {
-                                    const genderKey = findCol(row, ['gender', 'เพศ', 'sex']);
-                                    const ageKey = findCol(row, ['age', 'อายุ']);
-                                    
                                     if (!row[genderKey] && !row[ageKey]) return null;
-
-                                    const eduKey = findCol(row, ['education', 'การศึกษา', 'ระดับการศึกษา']);
-                                    const statusKey = findCol(row, ['status', 'สถานะ']);
                                     
-                                    const getScore = (cands, excludes = []) => {
-                                        const col = findCol(row, cands, excludes);
-                                        if (col && row[col]) {
-                                            const val = row[col];
+                                    const getScoreRaw = (colName) => {
+                                        if (colName && row[colName]) {
+                                            const val = row[colName];
                                             if (typeof val === 'number') return val;
                                             if (typeof val === 'string') {
                                                 const match = val.match(/^(\d+(\.\d+)?)/);
@@ -196,22 +225,21 @@
 
                                     return {
                                         id: row.id || `row-${index + 1}`,
-                                        gender: row[genderKey],
-                                        age: row[ageKey],
-                                        status: row[statusKey],
-                                        education: row[eduKey],
+                                        gender: row[genderKey] || 'ไม่ระบุ',
+                                        age: row[ageKey] || 'ไม่ระบุ',
+                                        status: row[statusKey] || 'ไม่ระบุ',
+                                        education: row[eduKey] || 'ไม่ระบุ',
                                         scores: {
-                                            p2_1_q1: getScore(['p2_1_q1', 'ข้อ 1', 'จัดวางเมนู', 'ความสะดวก']), 
-                                            p2_1_q2: getScore(['p2_1_q2', 'ข้อ 2', 'ติดตั้งและใช้งาน', 'การติดตั้ง', 'ความสวยงาม']),
-                                            p2_1_q3: getScore(['p2_1_q3', 'ข้อ 3', 'ค้นหาข้อมูล', 'การจัดวาง'], ['เมนู']), 
-                                            p2_2_q4: getScore(['p2_2_q4', 'ข้อ 4', 'เป็นปัจจุบัน', 'ความถูกต้อง']),
-                                            p2_2_q5: getScore(['p2_2_q5', 'ข้อ 5', 'ศพด', 'ศูนย์พัฒนาเด็กเล็ก', 'ความรวดเร็ว']),
-                                            // ลบคำว่ากีฬาออกในข้อ 6 เพื่อไม่ให้ทับซ้อนกับข้อ 7
-                                            p2_2_q6: getScore(['p2_2_q6', 'ข้อ 6', 'ศาสนา', 'ประเพณี', 'วัฒนธรรม', 'ความชัดเจน']),
-                                            p2_2_q7: getScore(['p2_2_q7', 'ข้อ 7', 'ยืม-คืน', 'ยืมคืน', 'อุปกรณ์กีฬา', 'ประโยชน์']),
-                                            p2_2_q8: getScore(['p2_2_q8', 'ข้อ 8', 'เว็บไซต์', 'ให้บริการ', 'ความพึงพอใจ']),
-                                            p2_2_q9: getScore(['p2_2_q9', 'ข้อ 9', 'ติดต่อเจ้าหน้าที่', 'การแนะนำ']),
-                                            p3: getScore(['p3', 'ส่วนที่ 3', 'ภาพรวม'])
+                                            p2_1_q1: getScoreRaw(colQ1), 
+                                            p2_1_q2: getScoreRaw(colQ2),
+                                            p2_1_q3: getScoreRaw(colQ3), 
+                                            p2_2_q4: getScoreRaw(colQ4),
+                                            p2_2_q5: getScoreRaw(colQ5),
+                                            p2_2_q6: getScoreRaw(colQ6),
+                                            p2_2_q7: getScoreRaw(colQ7),
+                                            p2_2_q8: getScoreRaw(colQ8),
+                                            p2_2_q9: getScoreRaw(colQ9),
+                                            p3: getScoreRaw(colQ10)
                                         }
                                     };
                                 })
@@ -220,9 +248,8 @@
                             if (parsedData.length > 0) {
                                 setData(parsedData);
                             } else {
-                                const foundColumns = results.meta.fields ? results.meta.fields.join(', ') : "ไม่พบคอลัมน์";
-                                setError("เชื่อมต่อได้ แต่ไม่พบข้อมูลที่ตรงเงื่อนไข");
-                                setErrorDetails(`ระบบอ่านคอลัมน์ได้ดังนี้: [${foundColumns}]\n\nโปรดตรวจสอบว่ามีคอลัมน์ 'gender'/'เพศ' และ 'age'/'อายุ' หรือไม่`);
+                                setError("เชื่อมต่อได้ แต่ไม่พบข้อมูลผู้ตอบ");
+                                setErrorDetails(`กรุณาตรวจสอบชื่อคอลัมน์ เพศ/อายุ ใน Sheet ของท่าน`);
                             }
                             setLoading(false);
                         },
@@ -257,7 +284,7 @@
                 return { total, males, females, averageScore };
             }, [data]);
 
-            // --- Detailed Table Data (NEW) ---
+            // --- Detailed Table Data ---
             const detailedTableData = useMemo(() => {
                 if (data.length === 0) return null;
 
@@ -349,14 +376,12 @@
                 );
             };
 
-            // --- Individual Satisfaction Summary (New Request) ---
             const satisfactionStats = useMemo(() => {
-                let highCount = 0; // All items >= 4
-                let lowCount = 0;  // Any item <= 3
+                let highCount = 0; 
+                let lowCount = 0;  
 
                 data.forEach(row => {
                     const scores = Object.values(row.scores);
-                    // Filter numeric scores
                     const numericScores = scores.filter(s => typeof s === 'number');
                     
                     if (numericScores.length > 0) {
@@ -364,7 +389,7 @@
                         if (allHigh) {
                             highCount++;
                         } else {
-                            lowCount++; // If not all >= 4, means at least one is < 4 (<=3)
+                            lowCount++; 
                         }
                     }
                 });
@@ -398,8 +423,8 @@
                     const bachData = data.filter(d => d.education && String(d.education).includes('ปริญญาตรี') && !String(d.education).includes('ต่ำกว่า'));
                     const lowerBachData = data.filter(d => d.education && String(d.education).includes('ต่ำกว่าปริญญาตรี'));
                     
-                    const avgBach = bachData.length ? bachData.reduce((acc, curr) => acc + curr.scores[qKey], 0) / bachData.length : 0;
-                    const avgLower = lowerBachData.length ? lowerBachData.reduce((acc, curr) => acc + curr.scores[qKey], 0) / lowerBachData.length : 0;
+                    const avgBach = bachData.length ? bachData.reduce((acc, curr) => acc + curr.scores[qKey], 0) / (bachData.length || 1) : 0;
+                    const avgLower = lowerBachData.length ? lowerBachData.reduce((acc, curr) => acc + curr.scores[qKey], 0) / (lowerBachData.length || 1) : 0;
                     
                     let shortName = '';
                     if (qKey.includes('p2_1')) shortName = `2.1 ข้อ ${qKey.split('q')[1]}`;
@@ -566,10 +591,8 @@
 
                     <main className="container mx-auto px-4 py-6 md:py-8">
                         
-                        {/* --- Prominent Survey Link Card (Moved to Top) --- */}
                         <a href="https://gornphet.github.io/line_Satisfaction/" target="_blank" rel="noopener noreferrer" 
                            className="block bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 relative overflow-hidden group mb-6 md:mb-8">
-                            {/* Decoration Background */}
                             <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
                             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-24 h-24 bg-white opacity-10 rounded-full blur-2xl"></div>
 
@@ -598,7 +621,6 @@
                             </div>
                         </a>
 
-                        {/* Stat Cards - Mobile Grid adjusted */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
                             <StatCard icon={<Users />} title="ผู้ตอบทั้งหมด" value={stats.total} sub="คน" color="bg-blue-400" />
                             <StatCard icon={<UserCheck />} title="ชาย" value={stats.males} sub={`${stats.total ? ((stats.males/stats.total)*100).toFixed(0) : 0}%`} color="bg-indigo-400" />
@@ -606,7 +628,6 @@
                             <StatCard icon={<Activity />} title="คะแนนเฉลี่ย" value={stats.averageScore} sub="เต็ม 5.00" color="bg-emerald-400" />
                         </div>
 
-                        {/* Tabs */}
                         <div className="flex space-x-2 mb-6 border-b border-slate-200 overflow-x-auto pb-2 no-scrollbar">
                             <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={<BarChart2 size={18} />} label="ภาพรวม" />
                             <TabButton active={activeTab === 'summary'} onClick={() => setActiveTab('summary')} icon={<ClipboardList size={18} />} label="สรุปผลรายด้าน" />
@@ -617,7 +638,6 @@
                         {activeTab === 'overview' && (
                             <div className="space-y-6 md:space-y-8 animate-fade-in">
                                 
-                                {/* --- NEW: Individual Satisfaction Analysis Row --- */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
                                     <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex items-center gap-4">
                                         <div className="p-3 bg-white text-emerald-600 rounded-full shadow-sm shrink-0">
@@ -650,9 +670,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                {/* ----------------------------------------------------- */}
 
-                                {/* --- NEW: Detailed Summary Table --- */}
                                 {detailedTableData && (
                                     <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                                         <div className="mb-4 border-b border-slate-50 pb-4">
@@ -712,6 +730,29 @@
                                 <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
                                     <div className="mb-4 md:mb-6 border-b border-slate-50 pb-4">
                                         <h2 className="text-lg md:text-xl font-bold text-slate-700 flex items-center gap-2">
+                                            <BookOpen className="text-blue-400 shrink-0" size={24} />
+                                            <span className="truncate">แยกตามวุฒิการศึกษา</span>
+                                        </h2>
+                                        <p className="text-xs md:text-sm text-slate-400 mt-1">คะแนนเฉลี่ยรายข้อ (ปริญญาตรี vs ต่ำกว่า)</p>
+                                    </div>
+                                    <div className="h-[300px] md:h-[400px]">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={scoreByEducation} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                <XAxis dataKey="shortName" tick={{fontSize: 10, fill: '#64748b'}} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
+                                                <YAxis domain={[0, 5]} allowDecimals={false} tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} />
+                                                <RechartsTooltip content={<CustomTooltip />} cursor={{fill: '#f1f5f9'}} />
+                                                <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{fontSize: '12px'}} />
+                                                <Bar dataKey="ปริญญาตรี" fill={COLORS.primary} radius={[4, 4, 0, 0]} name="ปริญญาตรี" />
+                                                <Bar dataKey="ต่ำกว่าปริญญาตรี" fill={COLORS.secondary} radius={[4, 4, 0, 0]} name="ต่ำกว่า ป.ตรี" />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
+                                    <div className="mb-4 md:mb-6 border-b border-slate-50 pb-4">
+                                        <h2 className="text-lg md:text-xl font-bold text-slate-700 flex items-center gap-2">
                                             <Users className="text-emerald-400 shrink-0" size={24} />
                                             <span className="truncate">แยกตามช่วงอายุ</span>
                                         </h2>
@@ -736,7 +777,6 @@
                             </div>
                         )}
 
-                        {/* --- NEW: Summary Tab (สรุปผลรายด้าน) --- */}
                         {activeTab === 'summary' && categoryStats && (
                             <div className="space-y-6 md:space-y-8 animate-fade-in">
                                 {[categoryStats.part1, categoryStats.part2, categoryStats.part3].map((part, index) => (
@@ -787,7 +827,6 @@
                             </div>
                         )}
 
-                        {/* Demographics Tab */}
                         {activeTab === 'demographics' && (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 animate-fade-in">
                                 <PieChartCard title="ช่วงอายุ" data={pieData.age} colors={COLORS.pie} />
@@ -796,12 +835,37 @@
                             </div>
                         )}
 
-                        {/* Details Tab */}
                         {activeTab === 'details' && (
                             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
                                 <div className="p-4 md:p-6 border-b border-slate-100">
                                     <h3 className="font-bold text-lg text-slate-700">ข้อมูลดิบ ({data.length} รายการ)</h3>
                                 </div>
+                                
+                                {/* --- NEW: Debug Box แสดงชื่อคอลัมน์ที่ระบบดึงมา --- */}
+                                {mappedColsInfo && mappedColsInfo.allHeaders && (
+                                    <div className="p-4 md:p-6 bg-yellow-50 border-b border-yellow-200">
+                                        <div className="flex items-center gap-2 text-yellow-800 mb-3">
+                                            <Search size={20} />
+                                            <h4 className="font-bold text-sm md:text-base">เครื่องมือตรวจสอบการจับคู่คอลัมน์ (Debug Tool)</h4>
+                                        </div>
+                                        <p className="text-xs md:text-sm text-yellow-700 mb-3">ตรวจสอบว่าระบบดึงข้อมูลคะแนนมาจากหัวตารางคอลัมน์ชื่ออะไรใน Google Sheet หากดึงผิดข้อ ให้แก้ไขชื่อหัวคอลัมน์ใน Sheet ให้แตกต่างกันอย่างชัดเจน</p>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-xs md:text-sm text-yellow-900 bg-white/50 p-4 rounded-lg border border-yellow-200">
+                                            <div className="truncate"><span className="font-bold">ข้อ 1:</span> {mappedColsInfo.q1 || <span className="text-red-500">หาไม่เจอ</span>}</div>
+                                            <div className="truncate"><span className="font-bold">ข้อ 2:</span> {mappedColsInfo.q2 || <span className="text-red-500">หาไม่เจอ</span>}</div>
+                                            <div className="truncate"><span className="font-bold">ข้อ 3:</span> {mappedColsInfo.q3 || <span className="text-red-500">หาไม่เจอ</span>}</div>
+                                            <div className="truncate"><span className="font-bold">ข้อ 4:</span> {mappedColsInfo.q4 || <span className="text-red-500">หาไม่เจอ</span>}</div>
+                                            <div className="truncate"><span className="font-bold">ข้อ 5:</span> {mappedColsInfo.q5 || <span className="text-red-500">หาไม่เจอ</span>}</div>
+                                            <div className="truncate"><span className="font-bold">ข้อ 6:</span> {mappedColsInfo.q6 || <span className="text-red-500">หาไม่เจอ</span>}</div>
+                                            <div className="truncate"><span className="font-bold">ข้อ 7:</span> {mappedColsInfo.q7 || <span className="text-red-500">หาไม่เจอ</span>}</div>
+                                            <div className="truncate"><span className="font-bold">ข้อ 8:</span> {mappedColsInfo.q8 || <span className="text-red-500">หาไม่เจอ</span>}</div>
+                                            <div className="truncate"><span className="font-bold">ข้อ 9:</span> {mappedColsInfo.q9 || <span className="text-red-500">หาไม่เจอ</span>}</div>
+                                            <div className="truncate"><span className="font-bold">ส่วนที่ 3:</span> {mappedColsInfo.q10 || <span className="text-red-500">หาไม่เจอ</span>}</div>
+                                        </div>
+                                    </div>
+                                )}
+                                {/* ----------------------------------------------------- */}
+
                                 <div className="overflow-x-auto h-[600px]">
                                     <table className="w-full text-sm text-left relative min-w-[800px]">
                                         <thead className="bg-slate-50 text-slate-600 font-semibold border-b sticky top-0 shadow-sm z-10">
