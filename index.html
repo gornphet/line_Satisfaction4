@@ -149,18 +149,26 @@
                 setError(null);
                 setErrorDetails(null);
 
+                // เพิ่ม Timestamp เพื่อป้องกัน Browser จำค่าเดิม (Cache Buster)
+                const fetchUrl = GOOGLE_SHEET_CSV_URL + (GOOGLE_SHEET_CSV_URL.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
+
                 try {
-                    Papa.parse(GOOGLE_SHEET_CSV_URL, {
+                    Papa.parse(fetchUrl, {
                         download: true,
                         header: true,
                         skipEmptyLines: true,
                         complete: (results) => {
-                            // Helper to match columns flexibly
-                            const findCol = (row, candidates) => {
+                            // Helper to match columns flexibly with Exclusion logic
+                            const findCol = (row, candidates, excludes = []) => {
                                 const keys = Object.keys(row);
                                 const exact = keys.find(k => candidates.includes(k.trim().toLowerCase()));
                                 if (exact) return exact;
-                                return keys.find(k => candidates.some(c => k.includes(c)));
+                                return keys.find(k => {
+                                    const kLower = k.toLowerCase();
+                                    const hasMatch = candidates.some(c => kLower.includes(c.toLowerCase()));
+                                    const hasExclude = excludes.length > 0 && excludes.some(e => kLower.includes(e.toLowerCase()));
+                                    return hasMatch && !hasExclude;
+                                });
                             };
 
                             const parsedData = results.data
@@ -173,8 +181,8 @@
                                     const eduKey = findCol(row, ['education', 'การศึกษา', 'ระดับการศึกษา']);
                                     const statusKey = findCol(row, ['status', 'สถานะ']);
                                     
-                                    const getScore = (cands) => {
-                                        const col = findCol(row, cands);
+                                    const getScore = (cands, excludes = []) => {
+                                        const col = findCol(row, cands, excludes);
                                         if (col && row[col]) {
                                             const val = row[col];
                                             if (typeof val === 'number') return val;
@@ -193,15 +201,16 @@
                                         status: row[statusKey],
                                         education: row[eduKey],
                                         scores: {
-                                            p2_1_q1: getScore(['p2_1_q1', 'ด้าน 2.1 ข้อ 1', 'ข้อ 1', 'การจัดวางเมนู', 'ความสะดวก']), 
-                                            p2_1_q2: getScore(['p2_1_q2', 'ด้าน 2.1 ข้อ 2', 'ข้อ 2', 'การติดตั้งและใช้งาน', 'การติดตั้ง', 'ความสวยงาม']),
-                                            p2_1_q3: getScore(['p2_1_q3', 'ด้าน 2.1 ข้อ 3', 'ข้อ 3', 'การค้นหาข้อมูล', 'การค้นหา', 'การจัดวาง']),
-                                            p2_2_q4: getScore(['p2_2_q4', 'ด้าน 2.2 ข้อ 4', 'ข้อ 4', 'ความเป็นปัจจุบัน', 'ความถูกต้อง']),
-                                            p2_2_q5: getScore(['p2_2_q5', 'ด้าน 2.2 ข้อ 5', 'ข้อ 5', 'ศพด', 'ศูนย์พัฒนาเด็กเล็ก', 'ความรวดเร็ว']),
-                                            p2_2_q6: getScore(['p2_2_q6', 'ด้าน 2.2 ข้อ 6', 'ข้อ 6', 'กีฬา', 'ศาสนา', 'วัฒนธรรม', 'ความชัดเจน']),
-                                            p2_2_q7: getScore(['p2_2_q7', 'ด้าน 2.2 ข้อ 7', 'ข้อ 7', 'ยืม-คืน', 'อุปกรณ์กีฬา', 'ประโยชน์']),
-                                            p2_2_q8: getScore(['p2_2_q8', 'ด้าน 2.2 ข้อ 8', 'ข้อ 8', 'เว็บไซต์', 'ความพึงพอใจ']),
-                                            p2_2_q9: getScore(['p2_2_q9', 'ด้าน 2.2 ข้อ 9', 'ข้อ 9', 'ติดต่อเจ้าหน้าที่', 'การแนะนำ']),
+                                            p2_1_q1: getScore(['p2_1_q1', 'ข้อ 1', 'จัดวางเมนู', 'ความสะดวก']), 
+                                            p2_1_q2: getScore(['p2_1_q2', 'ข้อ 2', 'ติดตั้งและใช้งาน', 'การติดตั้ง', 'ความสวยงาม']),
+                                            p2_1_q3: getScore(['p2_1_q3', 'ข้อ 3', 'ค้นหาข้อมูล', 'การจัดวาง'], ['เมนู']), 
+                                            p2_2_q4: getScore(['p2_2_q4', 'ข้อ 4', 'เป็นปัจจุบัน', 'ความถูกต้อง']),
+                                            p2_2_q5: getScore(['p2_2_q5', 'ข้อ 5', 'ศพด', 'ศูนย์พัฒนาเด็กเล็ก', 'ความรวดเร็ว']),
+                                            // ลบคำว่ากีฬาออกในข้อ 6 เพื่อไม่ให้ทับซ้อนกับข้อ 7
+                                            p2_2_q6: getScore(['p2_2_q6', 'ข้อ 6', 'ศาสนา', 'ประเพณี', 'วัฒนธรรม', 'ความชัดเจน']),
+                                            p2_2_q7: getScore(['p2_2_q7', 'ข้อ 7', 'ยืม-คืน', 'ยืมคืน', 'อุปกรณ์กีฬา', 'ประโยชน์']),
+                                            p2_2_q8: getScore(['p2_2_q8', 'ข้อ 8', 'เว็บไซต์', 'ให้บริการ', 'ความพึงพอใจ']),
+                                            p2_2_q9: getScore(['p2_2_q9', 'ข้อ 9', 'ติดต่อเจ้าหน้าที่', 'การแนะนำ']),
                                             p3: getScore(['p3', 'ส่วนที่ 3', 'ภาพรวม'])
                                         }
                                     };
