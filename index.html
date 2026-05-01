@@ -136,6 +136,7 @@
             const [errorDetails, setErrorDetails] = useState(null);
             const [activeTab, setActiveTab] = useState('overview');
             const [mappedColsInfo, setMappedColsInfo] = useState({}); // สำหรับแสดง Debug
+            const [showSurveyInfo, setShowSurveyInfo] = useState(false); // สถานะเปิด-ปิด Modal คำอธิบาย
 
             const fetchData = async () => {
                 if (!GOOGLE_SHEET_CSV_URL) return;
@@ -591,8 +592,10 @@
 
                     <main className="container mx-auto px-4 py-6 md:py-8">
                         
-                        <a href="https://gornphet.github.io/line_Satisfaction/" target="_blank" rel="noopener noreferrer" 
-                           className="block bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 relative overflow-hidden group mb-6 md:mb-8">
+                        {/* --- Prominent Survey Link Card (Changed to open modal) --- */}
+                        <div onClick={() => setShowSurveyInfo(true)} 
+                           className="cursor-pointer block bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 relative overflow-hidden group mb-6 md:mb-8">
+                            {/* Decoration Background */}
                             <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
                             <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-24 h-24 bg-white opacity-10 rounded-full blur-2xl"></div>
 
@@ -609,17 +612,17 @@
                                                 Live Link
                                             </span>
                                         </h3>
-                                        <p className="text-blue-100 text-sm mt-1 font-mono truncate opacity-80">https://gornphet.github.io/line_Satisfaction/</p>
+                                        <p className="text-blue-100 text-sm mt-1 font-mono truncate opacity-80">คลิกเพื่ออ่านคำอธิบายและเข้าสู่แบบประเมิน</p>
                                     </div>
                                 </div>
                                 
                                 <div className="w-full md:w-auto">
                                     <div className="flex items-center justify-center gap-2 text-sm font-bold text-blue-700 bg-white px-6 py-3 rounded-full shadow-md group-hover:bg-blue-50 transition-colors w-full md:w-auto">
-                                        ไปที่แบบสอบถาม <span className="group-hover:translate-x-1 transition-transform">→</span>
+                                        ดูคำอธิบาย & ทำแบบสอบถาม <span className="group-hover:translate-x-1 transition-transform">→</span>
                                     </div>
                                 </div>
                             </div>
-                        </a>
+                        </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
                             <StatCard icon={<Users />} title="ผู้ตอบทั้งหมด" value={stats.total} sub="คน" color="bg-blue-400" />
@@ -899,6 +902,67 @@
                             </div>
                         )}
                     </main>
+
+                    {/* --- Modal คำอธิบายแบบสอบถาม --- */}
+                    {showSurveyInfo && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+                            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+                                <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                    <h3 className="text-xl font-bold text-slate-800">คำอธิบายแบบสอบถาม</h3>
+                                    <button onClick={() => setShowSurveyInfo(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                    </button>
+                                </div>
+                                <div className="p-4 md:p-6 overflow-y-auto text-slate-600 space-y-5">
+                                    {/* --- เพิ่มข้อความเชิญชวนที่นี่ --- */}
+                                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm md:text-base leading-relaxed text-indigo-900">
+                                        <h4 className="font-bold text-center mb-2 text-indigo-800">แบบประเมินความพึงพอใจต่อการใช้งาน ประจำปีการศึกษา 2568</h4>
+                                        <p className="indent-6">
+                                            กองการศึกษา เทศบาลตำบลหัวดง ขอความร่วมมือจากผู้ใช้งานทุกท่าน ร่วมตอบแบบประเมินความพึงพอใจ เพื่อนำข้อมูลและข้อเสนอแนะที่ได้ไปใช้เป็นแนวทางในการปรับปรุงและพัฒนา Line Chat Bot ให้มีประสิทธิภาพ และตอบสนองต่อการใช้งานของท่านให้ดียิ่งขึ้น
+                                        </p>
+                                    </div>
+                                    {/* --------------------------- */}
+
+                                    <div>
+                                        <p className="font-bold text-slate-800 text-lg mb-1">เกณฑ์การวิเคราะห์ข้อมูลและการแปลความหมาย</p>
+                                        <p className="text-sm md:text-base leading-relaxed">
+                                            สำหรับการวิเคราะห์ข้อมูลความพึงพอใจใช้ค่าสถิติ โดยการนําค่าร้อยละ มาเป็นตัววิเคราะห์ข้อมูลความพึงพอใจ ตามเกณฑ์ดังนี้
+                                        </p>
+                                    </div>
+                                    
+                                    <div>
+                                        <h4 className="font-bold text-blue-700 mb-2 border-l-4 border-blue-500 pl-2">ระดับความพึงพอใจ</h4>
+                                        <ul className="space-y-1.5 text-sm md:text-base bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                                            <li className="flex justify-between border-b border-blue-100/50 pb-1.5"><span>มากที่สุด</span> <span className="font-bold text-slate-700">5 คะแนน</span></li>
+                                            <li className="flex justify-between border-b border-blue-100/50 pb-1.5"><span>มาก</span> <span className="font-bold text-slate-700">4 คะแนน</span></li>
+                                            <li className="flex justify-between border-b border-blue-100/50 pb-1.5"><span>ปานกลาง</span> <span className="font-bold text-slate-700">3 คะแนน</span></li>
+                                            <li className="flex justify-between border-b border-blue-100/50 pb-1.5"><span>น้อย</span> <span className="font-bold text-slate-700">2 คะแนน</span></li>
+                                            <li className="flex justify-between"><span>น้อยที่สุด</span> <span className="font-bold text-slate-700">1 คะแนน</span></li>
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="font-bold text-emerald-700 mb-2 border-l-4 border-emerald-500 pl-2">การแปลความหมายจากค่าเฉลี่ย</h4>
+                                        <ul className="space-y-1.5 text-sm md:text-base bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                                            <li className="flex justify-between border-b border-emerald-100/50 pb-1.5"><span className="font-mono font-semibold text-slate-700">4.50 – 5.00</span> <span>มีความพึงพอใจมากที่สุด</span></li>
+                                            <li className="flex justify-between border-b border-emerald-100/50 pb-1.5"><span className="font-mono font-semibold text-slate-700">3.50 – 4.49</span> <span>มีความพึงพอใจมาก</span></li>
+                                            <li className="flex justify-between border-b border-emerald-100/50 pb-1.5"><span className="font-mono font-semibold text-slate-700">2.50 – 3.49</span> <span>มีความพึงพอใจปานกลาง</span></li>
+                                            <li className="flex justify-between border-b border-emerald-100/50 pb-1.5"><span className="font-mono font-semibold text-slate-700">1.50 – 2.49</span> <span>มีความพึงพอใจค่อนข้างน้อย</span></li>
+                                            <li className="flex justify-between"><span className="font-mono font-semibold text-slate-700">1.00 – 1.49</span> <span>มีความพึงพอใจน้อย</span></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div className="p-4 md:p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                                    <button onClick={() => setShowSurveyInfo(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors font-medium text-sm md:text-base">
+                                        ปิดหน้าต่าง
+                                    </button>
+                                    <a href="https://gornphet.github.io/line_Satisfaction/" target="_blank" rel="noopener noreferrer" className="px-4 md:px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-bold shadow-sm flex items-center gap-2 text-sm md:text-base">
+                                        ไปที่แบบสอบถาม <ExternalLink size={18} />
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
